@@ -1,0 +1,24 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+.env
+
+# Notebooks and OS
+.ipynb_checkpoints/
+.DS_Store
+
+# Generated, can be rebuilt from the raw data
+data/clean/
+indexes/
+*.lance/
+cache.db
+
+# Gradio
+.gradio/
+flagged/
+
+# Data
+data/catalog.csv
+data/rfq.xlsx
