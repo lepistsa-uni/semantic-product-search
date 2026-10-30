@@ -22,3 +22,6 @@ flagged/
 # Data
 data/catalog.csv
 data/rfq.xlsx
+
+# IDE
+.idea/
