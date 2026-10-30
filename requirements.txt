@@ -1,0 +1,18 @@
+# Data
+pandas
+numpy
+openpyxl
+
+# retrieval
+nltk                    # Snowball
+rank-bm25               # BM25Okapi
+scikit-learn            # TF-IDF
+sentence-transformers   # E5-model, will take care of torch as well
+lancedb
+
+# Demo
+gradio
+
+# Notebooks
+matplotlib
+ipykernel
