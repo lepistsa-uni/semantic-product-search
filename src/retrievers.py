@@ -64,7 +64,7 @@ def search_bm25(query, bm25, products, top_k):
     best_first = sorted_indices[::-1] # reverse to get descending order
     top_indices = best_first[:top_k] # get top_k indices
 
-    top_products = products[["clean_label", "product_number"]].iloc[top_indices] # get product numbers of top_k products
+    top_products = products[["product_number", "clean_label"]].iloc[top_indices] # get product numbers of top_k products
     
     top_products = top_products.reset_index(drop=True) # reset index of top_products dataframe, that is, the index will be 0, 1, 2, ... instead of the original index from products dataframe
     
@@ -120,6 +120,7 @@ def fuse_rrf(bm25_results, dense_results, top_k):
 
 
 if __name__ == "__main__":
+
     # --- TEST FUNCTIONS --- #
     
     # load model
