@@ -10,6 +10,9 @@ scikit-learn            # TF-IDF
 sentence-transformers   # E5-model, will take care of torch as well
 lancedb
 
+# RAG-SELECTION
+ollama
+
 # Demo
 gradio
 
