@@ -6,17 +6,11 @@ def clean_text(text):
     if not isinstance(text, str):
         return ""
     
-    #  Lowercase
-    text = text.lower()
+    text = text.lower() #  Lowercase
+    text = re.sub(r'(\d)\s*x\s*(\d)', r'\1x\2', text) #  Normalize dimensions: '8 x 40' -> '8x40'
+    text = re.sub(r'(x\d+(?:[.,]\d+)?)\s*mm\b', r'\1', text) #  Strip 'mm' directly following a dimension: 'm8x40 mm' -> 'm8x40'
     
-    #  Normalize dimensions: '8 x 40' -> '8x40'
-    text = re.sub(r'(\d)\s*x\s*(\d)', r'\1x\2', text)
-    
-    #  Strip 'mm' directly following a dimension: 'm8x40 mm' -> 'm8x40'
-    text = re.sub(r'(x\d+(?:[.,]\d+)?)\s*mm\b', r'\1', text)
-
-    #  Normalize multiple spaces to a single space
-    return ' '.join(text.split())
+    return ' '.join(text.split()) #  Normalize multiple spaces to a single space
 
 
 stemmer = SnowballStemmer("finnish")
