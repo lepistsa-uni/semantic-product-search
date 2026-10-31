@@ -77,11 +77,47 @@ def search_bm25(query, bm25, products, top_k):
 
 def search_dense(query, model, tbl, top_k):
     '''search dense index for query and return top_n results as product numbers. needs "query:" prefix for query to work'''
-    pass
+    query_text = "query: " + query # add prefix to query
+    query_vector = model.encode(query_text, normalize_embeddings=True) # encode query to vector, normalization makes vector length 1 thus making cosine similarity equivalent to dot product
+    results = tbl.search(query_vector).limit(top_k).to_pandas() # search lancedb table for query vector and return top_k results as pandas dataframe
+    top_products = results[["product_number", "clean_label", "_distance"]]
+    top_products = top_products.rename(columns={"_distance": "dense_distance"}) # rename _distance column to dense_score
+    top_products["dense_distance"] = top_products["dense_distance"].round(2) # round dense_score to 2 decimal places
+    return top_products
 
-def fuse_rrf(keyword_list, dense_list, top_k, k=60):
+def fuse_rrf(bm25_results, dense_results, top_k):
     '''fuse two lists of product numbers using Reciprocal Rank Fusion (RRF). 1 / (k + rank). K-value comes from notebook 06'''
-    pass
+    rrf_scores = {}
+    clean_labels = {}
+
+    rank = 1
+    for _, row in bm25_results.iterrows():
+        product_number = row["product_number"]
+        rrf_scores[product_number] = rrf_scores.get(product_number, 0.0) + 1.0 / (RRF_K + rank)
+        clean_labels[product_number] = row["clean_label"]
+        rank += 1
+
+    rank = 1
+    for _, row in dense_results.iterrows():
+        product_number = row["product_number"]
+        rrf_scores[product_number] = rrf_scores.get(product_number, 0.0) + 1.0 / (RRF_K + rank)
+        clean_labels[product_number] = row["clean_label"]
+        rank += 1
+
+    ranked_products = sorted(rrf_scores, key=rrf_scores.get, reverse=True)
+    ranked_products = ranked_products[:top_k] # get top_k product numbers
+
+    rows = []
+    for product_number in ranked_products:
+        rows.append({
+            "product_number": product_number,
+            "clean_label": clean_labels[product_number],
+            "rrf_score": round(rrf_scores[product_number], 4),
+        })
+
+    top_products = pd.DataFrame(rows)
+    return top_products
+
 
 if __name__ == "__main__":
     # --- TEST FUNCTIONS --- #
@@ -99,7 +135,34 @@ if __name__ == "__main__":
     bm25 = build_bm25(products)
     
     # test search_bm25 function
-    query = clean_text("kuusiokoloruuvi m8 x 40 a4")
+    query = clean_text("kuusiokoloruuvi din7984 a4 m8x40")
     top_k = 5
     top_products = search_bm25(query, bm25, products, top_k)
     print(top_products)
+
+
+    tokens = tokenize_stem(query)
+    print("Query tokens:", tokens)
+
+    for product_number in top_products["product_number"]:
+        row = products.index[products["product_number"] == product_number][0]
+        print("\n", products["clean_label"].iloc[row])
+        for token in tokens:
+            token_score = bm25.get_scores([token])[row]
+            print(f"   {token:20} {token_score:.2f}")
+
+    # test search_dense function
+    print("\nTesting search_dense function:")
+    dense_products = search_dense(query, model, tbl, top_k)
+    print(dense_products)
+    
+    # test fuse_rrf function
+
+    print("RRF_K =", RRF_K)
+
+    print("\nTesting fuse_rrf function:")
+    bm25_20 = search_bm25(query, bm25, products, 20)
+    dense_20 = search_dense(query, model, tbl, 20)
+    print(bm25_20[["product_number", "clean_label"]])
+    print(dense_20[["product_number", "clean_label"]])
+    print(fuse_rrf(bm25_20, dense_20, top_k=5))

@@ -1,6 +1,9 @@
+# --- LIBRARIES --- #
+
 import re
 from nltk.stem.snowball import SnowballStemmer
 
+# --- FUNCTIONS --- #
 
 def clean_text(text):
     if not isinstance(text, str):
@@ -18,6 +21,8 @@ stemmer = SnowballStemmer("finnish")
 def tokenize_stem(text):
     tokens = re.findall(r'\b\w+\b', str(text).lower())
     return [stemmer.stem(t) for t in tokens]
+
+# --- TESTS --- #
 
 if __name__ == "__main__":
     #tests
