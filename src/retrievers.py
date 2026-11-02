@@ -6,6 +6,7 @@ import pandas as pd
 import torch
 import lancedb
 from sentence_transformers import SentenceTransformer
+from sentence_transformers import CrossEncoder
 from rank_bm25 import BM25Okapi
 from src.cleaning import tokenize_stem
 from src.cleaning import clean_text
@@ -15,6 +16,7 @@ from src.cleaning import clean_text
 
 DB_DIR = "data/clean/indexes/lancedb" # notebook 05
 MODEL_NAME = "intfloat/multilingual-e5-base" # notebook 05
+RERANKER_MODEL = "BAAI/bge-reranker-v2-m3" # notebook 07
 TABLE_NAME = "products" # notebook 05
 MAX_SEQ_LENGTH = 256 # notebook 05
 RRF_K = 60 # update after testing
@@ -28,6 +30,12 @@ def load_model():
     model.max_seq_length = MAX_SEQ_LENGTH
     return model
     
+def load_reranker():
+    '''load cross-encoder model for reranking'''
+    device = "mps" if torch.backends.mps.is_available() else ("cuda" if torch.cuda.is_available() else "cpu")
+    reranker = CrossEncoder(RERANKER_MODEL, device=device, max_length=512)
+    return reranker
+
 
 def open_products_table(db_dir):
     '''open products table from lancedb'''
@@ -118,6 +126,29 @@ def fuse_rrf(bm25_results, dense_results, top_k):
     top_products = pd.DataFrame(rows)
     return top_products
 
+
+def rerank_cross_encoder(query, candidates, reranker, products, top_k=5):
+    '''rerank candidate products using cross-encoder'''
+    if candidates.empty:
+        return pd.DataFrame()
+    
+    # look up search_text for each candidate product_number
+    cand_df = candidates.merge(
+        products[['product_number', 'search_text']], 
+        on='product_number', 
+        how='left'
+    )
+    cand_df['search_text'] = cand_df['search_text'].fillna(cand_df['clean_label']).fillna('')
+    
+    # create pairs of (query, candidate search_text) for reranking
+    pairs = [(query, text) for text in cand_df['search_text']]
+    cand_df['reranker_score'] = reranker.predict(pairs)
+    
+    # sort candidates by reranker_score and return top_k
+    reranked = cand_df.sort_values(by='reranker_score', ascending=False).head(top_k).reset_index(drop=True)
+    reranked['reranker_score'] = reranked['reranker_score'].round(2)
+    
+    return reranked[['product_number', 'clean_label', 'reranker_score']]
 
 if __name__ == "__main__":
 

@@ -18,6 +18,8 @@ from src.retrievers import (
     search_bm25,
     search_dense,
     fuse_rrf,
+    load_reranker,
+    rerank_cross_encoder
 )
 
 # --- SETTINGS --- #
@@ -64,6 +66,8 @@ products = pd.DataFrame(tbl.to_arrow().to_pandas())
 print("Building BM25 index...")
 bm25 = build_bm25(products)
 method_ranking = load_method_ranking()
+print("Loading reranker...")
+reranker = load_reranker()
 print("Done loading.")
 
 
@@ -75,7 +79,7 @@ def run_search(user_text):
 
     if query == "": # if empty query, return empty results
         empty = pd.DataFrame()
-        return "", empty, empty, empty
+        return "", empty, empty, empty, method_ranking
     
     # bm25 results
     bm25_results = search_bm25(query, bm25, products, SEARCH_DEPTH)
@@ -86,9 +90,11 @@ def run_search(user_text):
     # fuse results
     hybrid_results = fuse_rrf(bm25_results, dense_results, SHOW_TOP)
 
+    # rerank hybrid results using cross-encoder
+    reranked_results = rerank_cross_encoder(query, hybrid_results, reranker, products, SHOW_TOP)
 
-    return query, bm25_results.head(SHOW_TOP), dense_results.head(SHOW_TOP), hybrid_results, method_ranking # from loadings
 
+    return query, bm25_results.head(SHOW_TOP), dense_results.head(SHOW_TOP), reranked_results, method_ranking # from loadings
 
 # --- GRADIO INTERFACE --- #
 
@@ -100,7 +106,8 @@ interface = gr.Interface(
         gr.Textbox(label="Cleaned Query"), 
         gr.Dataframe(label="BM25"), 
         gr.Dataframe(label="Dense"), 
-        gr.Dataframe(label="Hybrid (RRF)"), 
+        gr.Dataframe(label="Hybrid (RRF)"),
+        gr.Dataframe(label="Cross-Encoder Reranked (Hybrid)"), 
         gr.Dataframe(label="Method Ranking (dev-set)")],
     title="Semantic Product Search",
     description="Enter query for semantic product search.",
