@@ -10,6 +10,7 @@ from sentence_transformers import CrossEncoder
 from rank_bm25 import BM25Okapi
 from src.cleaning import tokenize_stem
 from src.cleaning import clean_text
+from ollama import chat
 
 
 # --- SETTINGS --- #
@@ -17,6 +18,7 @@ from src.cleaning import clean_text
 DB_DIR = "data/clean/indexes/lancedb" # notebook 05
 MODEL_NAME = "intfloat/multilingual-e5-base" # notebook 05
 RERANKER_MODEL = "BAAI/bge-reranker-v2-m3" # notebook 07
+LLM_MODEL = "qwen3.5:4b" # changed smaller model to reduce memory usage and speed up inference
 TABLE_NAME = "products" # notebook 05
 MAX_SEQ_LENGTH = 256 # notebook 05
 RRF_K = 60 # update after testing
@@ -149,6 +151,67 @@ def rerank_cross_encoder(query, candidates, reranker, products, top_k=5):
     reranked['reranker_score'] = reranked['reranker_score'].round(2)
     
     return reranked[['product_number', 'clean_label', 'reranker_score']]
+
+
+def select_llm(query, candidates, products):
+    '''ask local LLM to pick one product from candidates or answer none'''
+    if candidates.empty:
+        return pd.DataFrame([{"product_number": "", "clean_label": "", "reason": ""}])
+    
+    # look up search_text for each candidate product_number
+    cand_df = candidates.merge(
+        products[['product_number', 'search_text']], 
+        on='product_number', 
+        how='left'
+    )
+    cand_df['search_text'] = cand_df['search_text'].fillna(cand_df['clean_label']).fillna('')
+    
+    # build prompt (max 250 characters per product)
+    candidate_lines = "\n".join([
+        f"- [{row['product_number']}] {row['search_text'][:250]}" 
+        for _, row in cand_df.iterrows()
+    ])
+    
+    prompt = f"""You are a technical wholesale product specialist.
+    Customer inquiry: "{query}"
+    Candidate products:
+    {candidate_lines}
+    Instructions:
+    1. Select the single candidate product that best matches the customer inquiry.
+    2. If none of the candidate products are an acceptable match, respond with "none".
+    3. Do NOT invent new product numbers. You must choose strictly from the provided candidate codes or "none".
+    Return ONLY a valid JSON object in this format:
+    {{
+    "product_number": "selected product code or none",
+    "clean_label": "selected product title or none",
+    "reason": "concise explanation in English (max 20 words)"
+    }}"""
+
+    try:
+        response = chat(
+            model=LLM_MODEL,
+            messages=[{'role': 'user', 'content': prompt}],
+            format='json',
+            think=False,
+            options={'temperature': 0, 'num_predict': 200}
+        )
+        data = json.loads(response.message.content)
+        code = str(data.get('product_number', '')).strip()
+        reason = str(data.get('reason', '')).strip()
+        
+        # look up official name from candidates
+        label_map = dict(zip(cand_df['product_number'], cand_df['clean_label']))
+        if code in label_map:
+            label = label_map[code]
+        elif code.lower() == 'none':
+            label = 'none'
+        else:
+            label = str(data.get('clean_label', '')) + " (hallucination)"
+            
+        return pd.DataFrame([{"product_number": code, "clean_label": label, "reason": reason}])
+        
+    except Exception as e:
+        return pd.DataFrame([{"product_number": "error", "clean_label": "error", "reason": str(e)}])
 
 if __name__ == "__main__":
 
