@@ -2,7 +2,7 @@
 
 **University of Oulu NLP course project**
 
-You type a customer request line in Finnish, for example "kuusiokoloruuvi M8x40 A4", and the system returns a ranked list of matching products from a technical wholesaler's catalogue of about 74,000 products.
+Typed request line in Finnish, for example "kuusiokoloruuvi M8x40 A4", and the system returns a ranked list of matching products from a technical wholesaler's catalogue of about 74,000 products.
 
 We compare five ways of doing this on real public requests for quotation (RFQs) and look at which one works best and where each one fails.
 
@@ -16,11 +16,13 @@ Keyword search has trouble with Finnish inflection and compound words. Embedding
 
 ## Data
 
-There are two raw files. `catalog.csv` holds all the product data: name, code, product hierarchy, an HTML long description and a clean short text. Everything is in Finnish, and titles are short and full of codes and sizes like M8x40 or A4.
+There are used two data sets. `catalog.csv` holds all the product data: name, code, product hierarchy, an HTML long description and a clean short text. Everything is in Finnish, and titles are short and full of codes and sizes like M8x40 or A4.
 
 `rfq.xlsx` holds the test queries with their gold answers. The queries come from 10 to 15 public RFQs from cities, municipalities and other public bodies, about 150 to 200 request lines. We add 30 to 50 hand written queries for categories that are thin in the RFQs. For each line, the product the wholesaler actually offered is the gold answer. There are no prices or sensitive details.
 
 The queries are split into a development set (one third) and an evaluation set (two thirds). The retrieval code never sees the gold answers.
+
+The repo does not contain these data files.
 
 ## Pipeline
 
